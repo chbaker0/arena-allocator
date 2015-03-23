@@ -8,6 +8,11 @@
 
 #include "BlockProvider.h"
 
+inline constexpr std::size_t firstSetBit(std::size_t i)
+{
+    return i & 1ULL ? firstSetBit(i << 1ULL) + 1 : 0;
+}
+
 template <class BlockProviderIn>
 class ArenaAllocator
 {
@@ -61,6 +66,7 @@ private:
 public:
     static constexpr std::size_t BlockSize = BlockProvider::BlockSize;
     static constexpr std::size_t MaxAllocationSize = sizeof(AllocBlock::mem);
+    static constexpr std::size_t StorageAlignment = 1ULL << firstSetBit(offsetof(AllocBlock, mem));
 
     ArenaAllocator()
     {
@@ -143,6 +149,17 @@ public:
         static_assert(isStorable(sizeof(T), alignof(T)), "Type must not be larger than max allocation size!");
 
         T *result = static_cast<T*>(allocateAlignedUnsafe(sizeof(T), alignof(T)));
+        new (result) T(std::forward<Args>(args)...);
+        return result;
+    }
+
+    template <typename T, typename... Args>
+    T* constructUnaligned(Args... args)
+    {
+        static_assert(std::is_trivially_destructible<T>::value, "Type must be trivially destructible!");
+        static_assert(sizeof(T) <= MaxAllocationSize, "Type must not be larger than max allocation size!");
+
+        T *result = static_cast<T*>(allocateUnsafe(sizeof(T)));
         new (result) T(std::forward<Args>(args)...);
         return result;
     }
