@@ -57,10 +57,16 @@ private:
         else
             appendBlock();
     }
+//
+//    static constexpr std::size_t alignIndex(std::size_t index, std::size_t alignment) noexcept
+//    {
+//        return (alignment * ((index + offsetof(AllocBlock, mem) + alignment - 1) / alignment)) - offsetof(AllocBlock, mem);
+//    }
 
+    // alignment MUST be a power of two!
     static constexpr std::size_t alignIndex(std::size_t index, std::size_t alignment) noexcept
     {
-        return (alignment * ((index + offsetof(AllocBlock, mem) + alignment - 1) / alignment)) - offsetof(AllocBlock, mem);
+        return ((index + offsetof(AllocBlock, mem) + alignment - 1) & ~(alignment - 1)) - offsetof(AllocBlock, mem);
     }
 
 public:
