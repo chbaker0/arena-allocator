@@ -10,7 +10,7 @@
 
 inline constexpr std::size_t firstSetBit(std::size_t i)
 {
-    return i & 1ULL ? firstSetBit(i << 1ULL) + 1 : 0;
+    return i & 1ULL ? 0 : firstSetBit(i >> 1ULL) + 1;
 }
 
 template <class BlockProviderIn>
