@@ -8,9 +8,9 @@
 
 #include "BlockProvider.h"
 
-inline constexpr std::size_t firstSetBit(std::size_t i)
+inline constexpr std::size_t firstSetBit(std::size_t i, std::size_t s = 0)
 {
-    return i & 1ULL ? 0 : firstSetBit(i >> 1ULL) + 1;
+    return i & 1ULL ? s : firstSetBit(i >> 1ULL, s + 1);
 }
 
 template <class BlockProviderIn>
