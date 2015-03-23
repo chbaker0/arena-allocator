@@ -18,13 +18,23 @@ class ArenaAllocator
 {
 public:
     using BlockProvider = BlockProviderIn;
+    static constexpr std::size_t BlockSize = BlockProvider::BlockSize;
+
+    // alignment MUST be a power of two!
+    static constexpr std::size_t alignIndex(std::size_t index, std::size_t alignment) noexcept
+    {
+        return ((index + alignment - 1) & ~(alignment - 1));
+    }
 
 private:
     struct alignas(std::max_align_t) AllocBlock
     {
-        AllocBlock *next;
         char mem[BlockProvider::BlockSize - sizeof(AllocBlock*)];
+        AllocBlock *next;
     };
+    static_assert(1ULL << firstSetBit(offsetof(AllocBlock, next)) >= alignof(AllocBlock*), "Incompatible block size!");
+    static_assert(sizeof(AllocBlock::mem) > 0, "Block size too small!");
+
     AllocBlock *base;
     AllocBlock *headBlock;
     std::size_t headIndex;
@@ -63,14 +73,7 @@ private:
 //        return (alignment * ((index + offsetof(AllocBlock, mem) + alignment - 1) / alignment)) - offsetof(AllocBlock, mem);
 //    }
 
-    // alignment MUST be a power of two!
-    static constexpr std::size_t alignIndex(std::size_t index, std::size_t alignment) noexcept
-    {
-        return ((index + offsetof(AllocBlock, mem) + alignment - 1) & ~(alignment - 1)) - offsetof(AllocBlock, mem);
-    }
-
 public:
-    static constexpr std::size_t BlockSize = BlockProvider::BlockSize;
     static constexpr std::size_t MaxAllocationSize = sizeof(AllocBlock::mem);
     static constexpr std::size_t StorageAlignment = 1ULL << firstSetBit(offsetof(AllocBlock, mem));
 
