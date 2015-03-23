@@ -1,8 +1,10 @@
 #ifndef ARENA_ALLOCATOR_H_INCLUDED
 #define ARENA_ALLOCATOR_H_INCLUDED
 
+#include <memory>
 #include <type_traits>
 #include <utility>
+#include <cstddef>
 
 #include "BlockProvider.h"
 
@@ -13,7 +15,7 @@ public:
     using BlockProvider = BlockProviderIn;
 
 private:
-    struct AllocBlock
+    struct alignas(std::max_align_t) AllocBlock
     {
         AllocBlock *next;
         char mem[BlockProvider::BlockSize - sizeof(AllocBlock*)];
@@ -51,6 +53,11 @@ private:
             appendBlock();
     }
 
+    static constexpr std::size_t alignIndex(std::size_t index, std::size_t alignment) noexcept
+    {
+        return (alignment * ((index + offsetof(AllocBlock, mem) + alignment - 1) / alignment)) - offsetof(AllocBlock, mem);
+    }
+
 public:
     static constexpr std::size_t BlockSize = BlockProvider::BlockSize;
     static constexpr std::size_t MaxAllocationSize = sizeof(AllocBlock::mem);
@@ -76,19 +83,20 @@ public:
         }
     }
 
+    static constexpr bool isStorable(std::size_t size, std::size_t alignment) noexcept
+    {
+        return alignIndex(0, alignment) + size < MaxAllocationSize;
+    }
+
     void reset() noexcept
     {
         headBlock = base;
         headIndex = 0;
     }
 
-    void* allocate(std::size_t s)
+    void* allocateUnsafe(std::size_t s)
     {
-        if(s == 0) s = 1;
-
-        if(s > MaxAllocationSize)
-            return nullptr;
-        else if(s > MaxAllocationSize - headIndex)
+        if(s > MaxAllocationSize - headIndex)
             nextBlock();
 
         void *ptr = &headBlock->mem[headIndex];
@@ -98,14 +106,43 @@ public:
 
         return ptr;
     }
+    void* allocate(std::size_t s)
+    {
+        if(s == 0) s = 1;
+
+        if(s > MaxAllocationSize)
+            throw std::bad_alloc();
+
+        return allocateUnsafe(s);
+    }
+    void* allocateAlignedUnsafe(std::size_t s, std::size_t alignment)
+    {
+        std::size_t alignedIndex = alignIndex(headIndex, alignment);
+        if(alignedIndex + s >= MaxAllocationSize)
+        {
+            nextBlock();
+            alignedIndex = alignIndex(headIndex, alignment);
+        }
+
+        headIndex = alignedIndex;
+        return allocateUnsafe(s);
+    }
+    void* allocateAligned(std::size_t s, std::size_t alignment)
+    {
+        if(s == 0) s = 1;
+
+        if(!isStorable(s, alignment))
+            throw std::bad_alloc();
+        return allocateAlignedUnsafe(s, alignment);
+    }
 
     template <typename T, typename... Args>
     T* construct(Args... args)
     {
         static_assert(std::is_trivially_destructible<T>::value, "Type must be trivially destructible!");
-        static_assert(sizeof(T) <= MaxAllocationSize, "Type must not be larger than max allocation size!");
+        static_assert(isStorable(sizeof(T), alignof(T)), "Type must not be larger than max allocation size!");
 
-        T *result = static_cast<T*>(allocate(sizeof(T)));
+        T *result = static_cast<T*>(allocateAlignedUnsafe(sizeof(T), alignof(T)));
         new (result) T(std::forward<Args>(args)...);
         return result;
     }
