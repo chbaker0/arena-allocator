@@ -114,6 +114,4 @@ public:
 template <std::size_t BlockSize>
 using ArenaAllocatorDefault = ArenaAllocator<BlockProviderNewDelete<BlockSize>>;
 
-using ArenaAllocatorSystem = ArenaAllocator<BlockProviderWindows<>>;
-
 #endif // ARENA_ALLOCATOR_H_INCLUDED
